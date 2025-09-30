@@ -106,7 +106,8 @@ try:
                     
                     # Adjust step and format for floats vs. integers
                     is_float = np.issubdtype(data_col.dtype, np.floating)
-                    step = 0.1 if is_float else 1
+                    # FIX: Ensure step is always a float to avoid StreamlitMixedNumericTypesError
+                    step = 0.1 if is_float else 1.0 
                     format_str = "%.2f" if is_float else "%d"
                     
                     val = st.number_input(
