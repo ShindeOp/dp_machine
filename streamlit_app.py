@@ -161,9 +161,18 @@ try:
             # Decode the prediction for user-friendly output
             predicted_label = target_labels.get(pred_encoded, "Unknown Outcome")
             
-            # Display result with styling
-            st.subheader("Prediction Result:")
-            if 'Dropout' in predicted_label:
+            # --- New Feature: Simplified Dropout/Not Dropout output ---
+            is_dropout = 'Dropout' in predicted_label
+            
+            st.subheader("Dropout Status:")
+            if is_dropout:
+                st.error("❌ **PREDICTED DROPOUT**")
+            else:
+                st.success("✅ **NOT PREDICTED DROPOUT**")
+
+            # Display result with styling (original detailed output)
+            st.subheader("Detailed Prediction:")
+            if is_dropout:
                  st.error(f"⚠️ **Predicted Outcome: {predicted_label}**")
                  st.caption("A student with these characteristics is highly likely to drop out. Consider intervention.")
             elif 'Graduate' in predicted_label:
