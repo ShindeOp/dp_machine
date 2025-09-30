@@ -7,14 +7,22 @@ st.info('This is an ML app')
 with st.expander('Data'):
     st.write('**Raw data**')
 
-# Raw URL to the CSV
-csv_url = "https://raw.githubusercontent.com/ShindeOp/dp_machine/master/data.csv"
+    # Raw URL to the CSV
+    csv_url = "https://raw.githubusercontent.com/ShindeOp/dp_machine/master/data.csv"
 
-try:
-    # Attempt to load the CSV file
-    df = pd.read_csv(csv_url)
-    st.success("Dataset loaded successfully!")
-    st.dataframe(df)  # Display dataframe
-except Exception as e:
-    # If an error occurs, display it in Streamlit
-    st.error(f"Error loading dataset: {e}")
+    try:
+        # Attempt to load the CSV file
+        df = pd.read_csv(csv_url)
+        st.success("Dataset loaded successfully!")
+
+        # Show first 10 rows by default
+        st.write("Showing first 10 rows:")
+        st.dataframe(df.head(10))
+
+        # Option to show full dataset
+        if st.checkbox("Show full dataset"):
+            st.dataframe(df)
+
+    except Exception as e:
+        # If an error occurs, display it in Streamlit
+        st.error(f"Error loading dataset: {e}")
