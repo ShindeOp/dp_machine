@@ -4,6 +4,9 @@ import pandas as pd
 st.title('🎈 ML app')
 st.info('This is an ML app')
 
+with st.expander('Data'):
+    st.write('**Raw data**')
+
 # Raw URL to the CSV
 csv_url = "https://raw.githubusercontent.com/ShindeOp/dp_machine/master/data.csv"
 
