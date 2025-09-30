@@ -12,13 +12,13 @@ st.set_page_config(page_title="Student Dropout Predictor", layout="wide")
 st.title('🎓 Student Dropout Prediction App')
 st.info('This app predicts whether a student will Dropout, Graduate, or remain Enrolled.')
 
-# Load dataset
-csv_url = "https://raw.githubusercontent.com/ShindeOp/dp_machine/master/data.csv"
+# Load dataset: UPDATED URL to the one provided in the ASIF-Kh repository
+csv_url = "https://raw.githubusercontent.com/ASIF-Kh/Student-Dropout-Prediction/main/data.csv"
 
 try:
-    # Load CSV with correct separator
+    # Load CSV with correct separator (The data.csv file from this repo is SEMICOLON-separated)
     df = pd.read_csv(csv_url, sep=";")
-    st.success("Dataset loaded successfully!")
+    st.success("Dataset loaded successfully from the new repository!")
 
     # Show first 10 rows
     with st.expander("📂 Preview Data"):
@@ -33,11 +33,27 @@ try:
     # 2. Setup Encoders dictionary
     feature_encoders = {}
     X_encoded = X_original.copy()
-    
-    # Identify and encode categorical features
+
+    # Identify and encode categorical features (original 'object' dtypes)
     categorical_cols = X_original.select_dtypes(include='object').columns
+
+    # Additionally, identify discrete numerical columns that should be treated as categories
+    # E.g., 'Marital status', 'Course', 'Application mode'
+    # We define a numerical column as categorical if it's not a float and has fewer than 50 unique values.
+    discrete_numeric_cols = [
+        col for col in X_original.columns 
+        if X_original[col].dtype != 'object' and 
+           not np.issubdtype(X_original[col].dtype, np.floating) and 
+           X_original[col].nunique() < 50
+    ]
     
-    for col in categorical_cols:
+    # Combine original categorical columns and the new discrete numerical ones
+    all_categorical_cols = list(set(list(categorical_cols) + discrete_numeric_cols))
+    
+    for col in all_categorical_cols:
+        # We need to ensure that the column data is consistent before encoding
+        X_original[col] = X_original[col].astype(str) 
+        
         le = LabelEncoder()
         # Fit and transform the column, storing the encoder
         X_encoded[col] = le.fit_transform(X_original[col])
@@ -77,14 +93,15 @@ try:
         for col in X_original.columns:
             with cols[col_index % 2]:
                 
-                # Check if the column was encoded (i.e., it's categorical)
+                # Check if the column was treated as categorical (it's in the encoders dictionary)
                 if col in feature_encoders:
                     # Categorical feature: use selectbox
                     le = feature_encoders[col]
                     original_options = le.classes_
                     
                     # Set default index to the mode (most frequent)
-                    default_index = list(original_options).index(X_original[col].mode()[0])
+                    # Use .iloc[0] for safety if mode returns multiple values
+                    default_index = list(original_options).index(str(X_original[col].mode().iloc[0]))
                     
                     selected_original_val = st.selectbox(
                         f"{col}", 
@@ -98,17 +115,24 @@ try:
                     sample_encoded[col] = encoded_val
                     
                 else:
-                    # Numerical feature: use number input
+                    # TRUE Numerical feature: use number input
                     data_col = X_original[col]
                     min_val = float(data_col.min())
                     max_val = float(data_col.max())
-                    mean_val = float(data_col.mean())
                     
-                    # Adjust step and format for floats vs. integers
                     is_float = np.issubdtype(data_col.dtype, np.floating)
-                    # FIX: Ensure step is always a float to avoid StreamlitMixedNumericTypesError
-                    step = 0.1 if is_float else 1.0 
-                    format_str = "%.2f" if is_float else "%d"
+
+                    if is_float:
+                        # Handle continuous float columns
+                        mean_val = float(data_col.mean())
+                        step = 0.1 
+                        format_str = "%.2f"
+                    else:
+                        # Handle true discrete integer columns (e.g., counters)
+                        # We cast the mean to an int for the default value to match the format.
+                        mean_val = float(int(data_col.mean())) 
+                        step = 1.0 
+                        format_str = "%d"
                     
                     val = st.number_input(
                         f"{col}", 
