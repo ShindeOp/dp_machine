@@ -15,6 +15,9 @@ st.info('This app predicts whether a student will Dropout, Graduate, or remain E
 # Load dataset: UPDATED URL to the one provided in the ASIF-Kh repository
 csv_url = "https://raw.githubusercontent.com/ASIF-Kh/Student-Dropout-Prediction/main/data.csv"
 
+# Placeholder for prediction results, which we will populate later
+prediction_output_container = st.empty()
+
 try:
     # Load CSV with correct separator (The data.csv file from this repo is SEMICOLON-separated)
     df = pd.read_csv(csv_url, sep=";")
@@ -148,22 +151,32 @@ try:
             col_index += 1
 
         st.markdown("---")
-        if st.button("PREDICT STUDENT OUTCOME", type="primary", use_container_width=True):
-            # Convert the encoded sample dictionary into a DataFrame for the model
-            sample_df = pd.DataFrame([sample_encoded])
+        
+        # Add a placeholder for the button inside the expander
+        button_clicked = st.button("PREDICT STUDENT OUTCOME", type="primary", use_container_width=True)
+    
+    # 7. Prediction Output Logic (Moved outside the expander for visibility)
+    if button_clicked:
+        # Convert the encoded sample dictionary into a DataFrame for the model
+        sample_df = pd.DataFrame([sample_encoded])
+        
+        # Ensure column order matches training data columns
+        sample_df = sample_df[X_encoded.columns]
+        
+        # Make prediction
+        pred_encoded = model.predict(sample_df)[0]
+        
+        # Decode the prediction for user-friendly output
+        predicted_label = target_labels.get(pred_encoded, "Unknown Outcome")
+        
+        # --- Simplified Dropout/Not Dropout output ---
+        is_dropout = 'Dropout' in predicted_label
+        
+        with prediction_output_container.container():
+            st.subheader("Prediction Results:")
+            st.markdown("---")
             
-            # Ensure column order matches training data columns
-            sample_df = sample_df[X_encoded.columns]
-            
-            # Make prediction
-            pred_encoded = model.predict(sample_df)[0]
-            
-            # Decode the prediction for user-friendly output
-            predicted_label = target_labels.get(pred_encoded, "Unknown Outcome")
-            
-            # --- New Feature: Simplified Dropout/Not Dropout output ---
-            is_dropout = 'Dropout' in predicted_label
-            
+            # Display Dropout Status
             st.subheader("Dropout Status:")
             if is_dropout:
                 st.error("❌ **PREDICTED DROPOUT**")
@@ -185,6 +198,8 @@ try:
 
 
 except Exception as e:
+    # Clear the prediction container if there's an error during data load/training
+    prediction_output_container.empty()
     st.error(f"An error occurred while loading data or training the model.")
     st.caption("Please ensure the CSV URL is correct and accessible.")
     st.exception(e)
