@@ -5,6 +5,6 @@ st.title('🎈 ML app')
 
 st.info('This is a ml app')
 
-df=pd.read_csv(df = pd.read_csv("data.csv",sep=";"))
+df=pd.read_csv('https://raw.githubusercontent.com/ShindeOp/dp_machine/master/data.csv')
 
-df
+
