@@ -157,7 +157,4 @@ Student | Developer | Machine Learning Enthusiast
 
 ```
 
-This version is clean and ready to use—no placeholders or optional instructions remain.  
 
-If you want, I can also **create a proper `requirements.txt`** for this project that matches your current Streamlit app exactly, so anyone can run it instantly. Do you want me to do that?
-```
