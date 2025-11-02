@@ -1,155 +1,118 @@
 import streamlit as st
-import pandas as pd
+import pickle
 import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score
+import os
 
-st.set_page_config(page_title="🎓 Student Dropout Predictor", layout="wide")
-st.title("🎓 Student Dropout Prediction App")
-st.info("Predict whether a student will Dropout, Graduate, or remain Enrolled.")
+# ---------------------------
+# Load trained model safely
+# ---------------------------
+model_path = os.path.join(os.path.dirname(__file__), "trained_model.pkl")
 
-prediction_output_container = st.empty()
+if not os.path.exists(model_path):
+    st.error("❌ Model file 'trained_model.pkl' not found. Please upload it to the same directory.")
+    st.stop()
 
-csv_url = "https://raw.githubusercontent.com/ASIF-Kh/Student-Dropout-Prediction/main/data.csv"
+with open(model_path, "rb") as f:
+    model = pickle.load(f)
 
-try:
-    df = pd.read_csv(csv_url, sep=";")
-    st.success("✅ Dataset loaded successfully!")
+# ---------------------------
+# Category Mappings
+# ---------------------------
 
-    # ------------------------------------------------------
-    # 1️⃣ Map numeric categorical codes to readable text
-    # ------------------------------------------------------
-    mappings = {
-        "Marital status": {
-            1: "Single", 2: "Married", 3: "Widower",
-            4: "Divorced", 5: "Facto Union", 6: "Legally Separated"
-        },
-        "Application mode": {
-            1: "1st Phase Contingent", 2: "Ordinance", 5: "International",
-            6: "Other", 9: "Direct", 10: "2nd Phase Contingent", 12: "3rd Phase Contingent"
-        },
-        "Application order": {1: "1st Choice", 2: "2nd Choice", 3: "3rd Choice"},
-        "Daytime/evening attendance": {1: "Daytime", 0: "Evening"},
-        "Previous qualification": {
-            1: "Secondary Education", 2: "Higher Education",
-            3: "Degree", 4: "Masters", 5: "Other"
-        },
-        "Nationality": {1: "Portuguese", 2: "Other EU", 3: "Non-EU"},
-        "Mother's qualification": {1: "Basic", 2: "Secondary", 3: "Graduate", 4: "Postgraduate"},
-        "Father's qualification": {1: "Basic", 2: "Secondary", 3: "Graduate", 4: "Postgraduate"},
-        "Mother's occupation": {1: "Unemployed", 2: "Employed", 3: "Self-Employed", 4: "Retired"},
-        "Father's occupation": {1: "Unemployed", 2: "Employed", 3: "Self-Employed", 4: "Retired"}
-    }
+marital_status_map = {
+    1: "Single",
+    2: "Married",
+    3: "Widow/Widower"
+}
 
-    # Apply readable mappings
-    for col, mapping in mappings.items():
-        if col in df.columns:
-            df[col] = df[col].replace(mapping)
+application_mode_map = {
+    1: "Online",
+    2: "Offline",
+    3: "Referral"
+}
 
-    with st.expander("📂 Preview Data"):
-        st.dataframe(df.head())
+daytime_evening_map = {
+    1: "Daytime",
+    2: "Evening"
+}
 
-    # ------------------------------------------------------
-    # 2️⃣ Preprocess
-    # ------------------------------------------------------
-    y_original = df["Target"]
-    X_original = df.drop("Target", axis=1).copy()
-    X_encoded = X_original.copy()
-    feature_encoders = {}
+previous_qualification_map = {
+    1: "High School",
+    2: "Bachelor’s Degree",
+    3: "Master’s Degree",
+    4: "Other"
+}
 
-    categorical_cols = X_original.select_dtypes(include="object").columns
-    discrete_numeric_cols = [
-        c for c in X_original.columns
-        if X_original[c].dtype != "object" and X_original[c].nunique() < 50
-    ]
-    all_categorical_cols = list(set(categorical_cols) | set(discrete_numeric_cols))
+nationality_map = {
+    1: "Indian",
+    2: "Foreign"
+}
 
-    for col in all_categorical_cols:
-        X_original[col] = X_original[col].astype(str)
-        le = LabelEncoder()
-        X_encoded[col] = le.fit_transform(X_original[col])
-        feature_encoders[col] = le
+parents_qualification_map = {
+    1: "No formal education",
+    2: "High School",
+    3: "Bachelor’s Degree",
+    4: "Master’s Degree",
+    5: "PhD"
+}
 
-    target_encoder = LabelEncoder()
-    y_encoded = target_encoder.fit_transform(y_original)
-    target_labels = dict(zip(target_encoder.transform(target_encoder.classes_), target_encoder.classes_))
+parents_occupation_map = {
+    1: "Unemployed",
+    2: "Employed",
+    3: "Self-employed",
+    4: "Retired"
+}
 
-    # ------------------------------------------------------
-    # 3️⃣ Train model
-    # ------------------------------------------------------
-    X_train, X_test, y_train, y_test = train_test_split(X_encoded, y_encoded, test_size=0.2, random_state=42)
-    model = RandomForestClassifier(n_estimators=200, random_state=42)
-    model.fit(X_train, y_train)
-    acc = accuracy_score(y_test, model.predict(X_test))
-    st.success(f"✅ Model trained (Accuracy: **{acc:.2f}**)")
+# ---------------------------
+# Streamlit UI
+# ---------------------------
 
-    # ------------------------------------------------------
-    # 4️⃣ Prediction UI
-    # ------------------------------------------------------
-    with st.expander("🎯 Try Prediction (Input Features)", expanded=True):
-        st.write("Adjust the features below to get a prediction.")
-        sample_encoded = {}
-        cols = st.columns(2)
-        col_index = 0
+st.title("🎓 Student Success Prediction App")
 
-        for col in X_original.columns:
-            with cols[col_index % 2]:
-                display_name = col.replace("_", " ").title()
-                le = feature_encoders.get(col)
+col1, col2 = st.columns(2)
 
-                # Dropdown for categorical
-                if le:
-                    options = list(le.classes_)
-                    # If options are numeric-like, make them readable
-                    if all(str(opt).isdigit() for opt in options):
-                        options = [f"Category {opt}" for opt in options]
+with col1:
+    marital_status_label = st.selectbox("Marital Status", marital_status_map.values())
+    application_order = st.number_input("Application Order", min_value=1, value=1)
+    daytime_label = st.selectbox("Daytime/Evening Attendance", daytime_evening_map.values())
+    prev_grade = st.number_input("Previous Qualification (Grade)", min_value=0.0, value=100.0)
+    mother_qual_label = st.selectbox("Mother's Qualification", parents_qualification_map.values())
+    mother_occ_label = st.selectbox("Mother's Occupation", parents_occupation_map.values())
 
-                    default_val = str(X_original[col].mode().iloc[0])
-                    default_index = options.index(default_val) if default_val in options else 0
+with col2:
+    application_mode_label = st.selectbox("Application Mode", application_mode_map.values())
+    course = st.number_input("Course", min_value=1000, value=9500)
+    prev_qual_label = st.selectbox("Previous Qualification", previous_qualification_map.values())
+    nationality_label = st.selectbox("Nationality", nationality_map.values())
+    father_qual_label = st.selectbox("Father's Qualification", parents_qualification_map.values())
+    father_occ_label = st.selectbox("Father's Occupation", parents_occupation_map.values())
 
-                    selected = st.selectbox(display_name, options, index=default_index, key=f"sb_{col}")
-                    selected_clean = selected.replace("Category ", "")
-                    sample_encoded[col] = int(le.transform([selected_clean])[0])
+# ---------------------------
+# Convert labels back to numeric
+# ---------------------------
 
-                # Numeric input for continuous features
-                else:
-                    data_col = X_original[col]
-                    val = st.number_input(display_name,
-                                          float(data_col.min()),
-                                          float(data_col.max()),
-                                          float(data_col.mean()),
-                                          key=f"ni_{col}")
-                    if np.issubdtype(X_encoded[col].dtype, np.integer):
-                        val = int(round(val))
-                    sample_encoded[col] = val
+marital_status = [k for k, v in marital_status_map.items() if v == marital_status_label][0]
+application_mode = [k for k, v in application_mode_map.items() if v == application_mode_label][0]
+daytime_evening = [k for k, v in daytime_evening_map.items() if v == daytime_label][0]
+prev_qual = [k for k, v in previous_qualification_map.items() if v == prev_qual_label][0]
+nationality = [k for k, v in nationality_map.items() if v == nationality_label][0]
+mother_qual = [k for k, v in parents_qualification_map.items() if v == mother_qual_label][0]
+father_qual = [k for k, v in parents_qualification_map.items() if v == father_qual_label][0]
+mother_occ = [k for k, v in parents_occupation_map.items() if v == mother_occ_label][0]
+father_occ = [k for k, v in parents_occupation_map.items() if v == father_occ_label][0]
 
-            col_index += 1
+# ---------------------------
+# Prediction
+# ---------------------------
 
-        st.markdown("---")
-        button_clicked = st.button("🚀 Predict Student Outcome", type="primary", use_container_width=True)
+features = np.array([[marital_status, application_mode, application_order, course,
+                      daytime_evening, prev_qual, prev_grade, nationality,
+                      mother_qual, father_qual, mother_occ, father_occ]])
 
-    # ------------------------------------------------------
-    # 5️⃣ Prediction Output
-    # ------------------------------------------------------
-    if button_clicked:
-        sample_df = pd.DataFrame([sample_encoded]).reindex(columns=X_encoded.columns, fill_value=0)
-        sample_df = sample_df.astype(X_encoded.dtypes.to_dict())
+if st.button("Predict"):
+    prediction = model.predict(features)
+    if prediction[0] == 1:
+        st.success("✅ The student is likely to succeed!")
+    else:
+        st.warning("⚠️ The student may face challenges.")
 
-        pred_encoded = model.predict(sample_df)[0]
-        predicted_label = target_labels.get(pred_encoded, "Unknown Outcome")
-
-        with prediction_output_container.container():
-            st.subheader("📊 Prediction Results")
-            if "Dropout" in predicted_label:
-                st.error(f"❌ **Predicted Outcome: {predicted_label}**")
-            elif "Graduate" in predicted_label:
-                st.balloons()
-                st.success(f"🎉 **Predicted Outcome: {predicted_label}**")
-            else:
-                st.info(f"➡️ **Predicted Outcome: {predicted_label}**")
-
-except Exception as e:
-    st.error("⚠️ Error loading or processing dataset.")
-    st.exception(e)
