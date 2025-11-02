@@ -41,6 +41,12 @@ try:
     df = df[key_features]
 
     # -------------------------------------------------------
+    # Normalize Admission grade to 0–100 scale
+    # -------------------------------------------------------
+    if "Admission grade" in df.columns:
+        df["Admission grade"] = (df["Admission grade"] / df["Admission grade"].max()) * 100
+
+    # -------------------------------------------------------
     # Apply readable mappings for categorical columns
     # -------------------------------------------------------
     mappings = {
