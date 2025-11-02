@@ -6,48 +6,39 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 
-st.set_page_config(page_title="🎓 Student Dropout Predictor (Optimized)", layout="wide")
-st.title("🎓 Student Dropout Prediction App — Optimized")
-st.info("Predict whether a student will Dropout, Graduate, or remain Enrolled using the most important features.")
+st.set_page_config(page_title="🎓 Student Dropout Predictor (Kaggle Dataset)", layout="wide")
+st.title("🎓 Student Dropout Prediction App (Kaggle Dataset)")
+st.info("Predict whether a student will Dropout, Graduate, or remain Enrolled using key academic and demographic features.")
 
 prediction_output_container = st.empty()
 
+# -------------------------------------------------------
+# Load Kaggle dataset (public mirror)
+# -------------------------------------------------------
 csv_url = "https://raw.githubusercontent.com/ASIF-Kh/Student-Dropout-Prediction/main/data.csv"
 
 try:
     df = pd.read_csv(csv_url, sep=";")
-    st.success("✅ Dataset loaded successfully!")
+    st.success("✅ Kaggle dataset loaded successfully!")
 
     # -------------------------------------------------------
-    # Keep only top important features + target
+    # Feature selection (top academic + personal + financial)
     # -------------------------------------------------------
     key_features = [
-        "Age at enrollment",
-        "Admission grade",
-        "Curricular units 1st sem (grade)",
-        "Curricular units 2nd sem (grade)",
-        "Curricular units 1st sem (approved)",
-        "Curricular units 2nd sem (approved)",
-        "Application mode",
-        "Course",
-        "Scholarship holder",
-        "Tuition fees up to date",
-        "Mother's qualification",
-        "Father's qualification",
-        "Mother's occupation",
-        "Father's occupation",
-        "Target"
+        "Age at enrollment", "Admission grade", "Curricular units 1st sem (grade)",
+        "Curricular units 2nd sem (grade)", "Curricular units 1st sem (approved)",
+        "Curricular units 2nd sem (approved)", "Application mode", "Course",
+        "Scholarship holder", "Tuition fees up to date", "Mother's qualification",
+        "Father's qualification", "Mother's occupation", "Father's occupation", "Target"
     ]
     df = df[key_features]
 
-    # -------------------------------------------------------
-    # Normalize Admission grade to 0–100 scale
-    # -------------------------------------------------------
+    # Normalize admission grade to 0–100
     if "Admission grade" in df.columns:
         df["Admission grade"] = (df["Admission grade"] / df["Admission grade"].max()) * 100
 
     # -------------------------------------------------------
-    # Apply readable mappings for categorical columns
+    # Map categorical features to readable names
     # -------------------------------------------------------
     mappings = {
         "Application mode": {
@@ -64,33 +55,26 @@ try:
         if col in df.columns:
             df[col] = df[col].replace(mapping)
 
-    with st.expander("📂 Preview Data"):
+    with st.expander("📂 Preview Kaggle Dataset"):
         st.dataframe(df.head())
 
     # -------------------------------------------------------
-    # Preprocess
+    # Encode and prepare data
     # -------------------------------------------------------
-    y_original = df["Target"]
-    X_original = df.drop("Target", axis=1).copy()
-    X_encoded = X_original.copy()
-    feature_encoders = {}
+    y = df["Target"]
+    X = df.drop("Target", axis=1)
+    X_encoded = X.copy()
+    encoders = {}
 
-    categorical_cols = X_original.select_dtypes(include="object").columns
-    discrete_numeric_cols = [
-        c for c in X_original.columns
-        if X_original[c].dtype != "object" and X_original[c].nunique() < 50
-    ]
-    all_categorical_cols = list(set(categorical_cols) | set(discrete_numeric_cols))
+    for col in X.columns:
+        if X[col].dtype == "object":
+            le = LabelEncoder()
+            X_encoded[col] = le.fit_transform(X[col].astype(str))
+            encoders[col] = le
 
-    for col in all_categorical_cols:
-        X_original[col] = X_original[col].astype(str)
-        le = LabelEncoder()
-        X_encoded[col] = le.fit_transform(X_original[col])
-        feature_encoders[col] = le
-
-    target_encoder = LabelEncoder()
-    y_encoded = target_encoder.fit_transform(y_original)
-    target_labels = dict(zip(target_encoder.transform(target_encoder.classes_), target_encoder.classes_))
+    le_target = LabelEncoder()
+    y_encoded = le_target.fit_transform(y)
+    target_labels = dict(zip(le_target.transform(le_target.classes_), le_target.classes_))
 
     # -------------------------------------------------------
     # Train model
@@ -102,70 +86,35 @@ try:
     st.success(f"✅ Model trained successfully (Accuracy: **{acc:.2f}**)")
 
     # -------------------------------------------------------
-    # Prediction UI
+    # Prediction Input UI
     # -------------------------------------------------------
-    with st.expander("🎯 Try Prediction (Input Features)", expanded=True):
-        st.write("Adjust the features below to get a prediction.")
-        sample_encoded = {}
+    with st.expander("🎯 Predict a Student Outcome", expanded=True):
+        sample = {}
         cols = st.columns(2)
-        col_index = 0
 
-        for col in X_original.columns:
-            with cols[col_index % 2]:
-                display_name = col.replace("_", " ").title()
-                le = feature_encoders.get(col)
-
-                # Dropdown for categorical
-                if le:
-                    options = list(le.classes_)
-                    if all(str(opt).isdigit() for opt in options):
-                        options = [f"Category {opt}" for opt in options]
-
-                    default_val = str(X_original[col].mode().iloc[0])
-                    default_index = options.index(default_val) if default_val in options else 0
-
-                    selected = st.selectbox(display_name, options, index=default_index, key=f"sb_{col}")
-                    selected_clean = selected.replace("Category ", "")
-                    sample_encoded[col] = int(le.transform([selected_clean])[0])
-
-                # Numeric input for continuous features
+        for i, col in enumerate(X.columns):
+            with cols[i % 2]:
+                if col in encoders:
+                    val = st.selectbox(col, list(X[col].unique()), key=col)
+                    sample[col] = encoders[col].transform([val])[0]
                 else:
-                    data_col = X_original[col]
-                    val = st.number_input(
-                        display_name,
-                        float(data_col.min()),
-                        float(data_col.max()),
-                        float(data_col.mean()),
-                        key=f"ni_{col}"
-                    )
-                    if np.issubdtype(X_encoded[col].dtype, np.integer):
-                        val = int(round(val))
-                    sample_encoded[col] = val
+                    val = st.slider(col, float(X[col].min()), float(X[col].max()), float(X[col].mean()), key=col)
+                    sample[col] = val
 
-            col_index += 1
+        if st.button("🚀 Predict", use_container_width=True):
+            sample_df = pd.DataFrame([sample])
+            pred = model.predict(sample_df)[0]
+            result = target_labels[pred]
 
-        st.markdown("---")
-        button_clicked = st.button("🚀 Predict Student Outcome", type="primary", use_container_width=True)
-
-    # -------------------------------------------------------
-    # Prediction Output
-    # -------------------------------------------------------
-    if button_clicked:
-        sample_df = pd.DataFrame([sample_encoded]).reindex(columns=X_encoded.columns, fill_value=0)
-        sample_df = sample_df.astype(X_encoded.dtypes.to_dict())
-
-        pred_encoded = model.predict(sample_df)[0]
-        predicted_label = target_labels.get(pred_encoded, "Unknown Outcome")
-
-        with prediction_output_container.container():
-            st.subheader("📊 Prediction Results")
-            if "Dropout" in predicted_label:
-                st.error(f"❌ **Predicted Outcome: {predicted_label}**")
-            elif "Graduate" in predicted_label:
-                st.balloons()
-                st.success(f"🎉 **Predicted Outcome: {predicted_label}**")
-            else:
-                st.info(f"➡️ **Predicted Outcome: {predicted_label}**")
+            with prediction_output_container.container():
+                st.subheader("📊 Prediction Result")
+                if "Dropout" in result:
+                    st.error(f"❌ **Predicted Outcome: {result}**")
+                elif "Graduate" in result:
+                    st.balloons()
+                    st.success(f"🎉 **Predicted Outcome: {result}**")
+                else:
+                    st.info(f"➡️ **Predicted Outcome: {result}**")
 
 except Exception as e:
     st.error("⚠️ Error loading or processing dataset.")
