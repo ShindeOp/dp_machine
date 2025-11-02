@@ -6,9 +6,9 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 
-st.set_page_config(page_title="🎓 Student Dropout Predictor", layout="wide")
-st.title("🎓 Student Dropout Prediction App")
-st.info("Predict whether a student will Dropout, Graduate, or remain Enrolled.")
+st.set_page_config(page_title="🎓 Student Dropout Predictor (Simplified)", layout="wide")
+st.title("🎓 Student Dropout Prediction App — Simplified")
+st.info("Predict whether a student will Dropout, Graduate, or remain Enrolled using only the most relevant features.")
 
 prediction_output_container = st.empty()
 
@@ -18,42 +18,27 @@ try:
     df = pd.read_csv(csv_url, sep=";")
     st.success("✅ Dataset loaded successfully!")
 
-    # ------------------------------------------------------
-    # 1️⃣ Map numeric categorical codes to readable text
-    # ------------------------------------------------------
-    mappings = {
-        "Marital status": {
-            1: "Single", 2: "Married", 3: "Widower",
-            4: "Divorced", 5: "Facto Union", 6: "Legally Separated"
-        },
-        "Application mode": {
-            1: "1st Phase Contingent", 2: "Ordinance", 5: "International",
-            6: "Other", 9: "Direct", 10: "2nd Phase Contingent", 12: "3rd Phase Contingent"
-        },
-        "Application order": {1: "1st Choice", 2: "2nd Choice", 3: "3rd Choice"},
-        "Daytime/evening attendance": {1: "Daytime", 0: "Evening"},
-        "Previous qualification": {
-            1: "Secondary Education", 2: "Higher Education",
-            3: "Degree", 4: "Masters", 5: "Other"
-        },
-        "Nationality": {1: "Portuguese", 2: "Other EU", 3: "Non-EU"},
-        "Mother's qualification": {1: "Basic", 2: "Secondary", 3: "Graduate", 4: "Postgraduate"},
-        "Father's qualification": {1: "Basic", 2: "Secondary", 3: "Graduate", 4: "Postgraduate"},
-        "Mother's occupation": {1: "Unemployed", 2: "Employed", 3: "Self-Employed", 4: "Retired"},
-        "Father's occupation": {1: "Unemployed", 2: "Employed", 3: "Self-Employed", 4: "Retired"}
-    }
-
-    # Apply readable mappings
-    for col, mapping in mappings.items():
-        if col in df.columns:
-            df[col] = df[col].replace(mapping)
+    # Keep only key features + target
+    key_features = [
+        "Curricular units 1st sem (grade)",
+        "Curricular units 2nd sem (grade)",
+        "Curricular units 1st sem (approved)",
+        "Curricular units 2nd sem (approved)",
+        "Admission grade",
+        "Tuition fees up to date",
+        "Age at enrollment",
+        "Scholarship holder",
+        "Course",
+        "Target"
+    ]
+    df = df[key_features]
 
     with st.expander("📂 Preview Data"):
         st.dataframe(df.head())
 
-    # ------------------------------------------------------
-    # 2️⃣ Preprocess
-    # ------------------------------------------------------
+    # ---------------------------------------
+    # Preprocess
+    # ---------------------------------------
     y_original = df["Target"]
     X_original = df.drop("Target", axis=1).copy()
     X_encoded = X_original.copy()
@@ -76,20 +61,20 @@ try:
     y_encoded = target_encoder.fit_transform(y_original)
     target_labels = dict(zip(target_encoder.transform(target_encoder.classes_), target_encoder.classes_))
 
-    # ------------------------------------------------------
-    # 3️⃣ Train model
-    # ------------------------------------------------------
+    # ---------------------------------------
+    # Train model
+    # ---------------------------------------
     X_train, X_test, y_train, y_test = train_test_split(X_encoded, y_encoded, test_size=0.2, random_state=42)
     model = RandomForestClassifier(n_estimators=200, random_state=42)
     model.fit(X_train, y_train)
     acc = accuracy_score(y_test, model.predict(X_test))
     st.success(f"✅ Model trained (Accuracy: **{acc:.2f}**)")
 
-    # ------------------------------------------------------
-    # 4️⃣ Prediction UI
-    # ------------------------------------------------------
+    # ---------------------------------------
+    # Prediction UI
+    # ---------------------------------------
     with st.expander("🎯 Try Prediction (Input Features)", expanded=True):
-        st.write("Adjust the features below to get a prediction.")
+        st.write("Adjust the key features below to get a prediction.")
         sample_encoded = {}
         cols = st.columns(2)
         col_index = 0
@@ -102,7 +87,6 @@ try:
                 # Dropdown for categorical
                 if le:
                     options = list(le.classes_)
-                    # If options are numeric-like, make them readable
                     if all(str(opt).isdigit() for opt in options):
                         options = [f"Category {opt}" for opt in options]
 
@@ -130,9 +114,9 @@ try:
         st.markdown("---")
         button_clicked = st.button("🚀 Predict Student Outcome", type="primary", use_container_width=True)
 
-    # ------------------------------------------------------
-    # 5️⃣ Prediction Output
-    # ------------------------------------------------------
+    # ---------------------------------------
+    # Prediction Output
+    # ---------------------------------------
     if button_clicked:
         sample_df = pd.DataFrame([sample_encoded]).reindex(columns=X_encoded.columns, fill_value=0)
         sample_df = sample_df.astype(X_encoded.dtypes.to_dict())
